@@ -16,6 +16,13 @@ class RTCMessageSender {
   virtual void onCreateDescription(webrtc::SdpType type,
                                    const std::string sdp) = 0;
   virtual void onSetDescription(webrtc::SdpType type) = 0;
+  virtual void sendText(std::string text) = 0;
+  virtual void onDataChannel(
+      rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel,
+      std::string streamId) = 0;
+  virtual void onMessage(const webrtc::DataBuffer& buffer,
+                         std::string streamId) = 0;
+  virtual void sendDataMessage(std::string streamId, std::string text)=0;
 };
 
 }

@@ -44,7 +44,7 @@ class Sora {
   std::function<void(ptrid_t)> on_remove_track_;
   std::function<void(std::string)> on_notify_;
   std::function<void(const int16_t*, int, int)> on_handle_audio_;
-
+  std::string conrole;
   std::mutex event_mutex_;
   std::deque<std::function<void()>> event_queue_;
 
@@ -83,6 +83,7 @@ class Sora {
     std::string audio_playout_device;
     std::string audio_codec;
     int audio_bitrate;
+    bool audio_only;
   };
 
   bool Connect(const ConnectConfig& config);
@@ -96,6 +97,7 @@ class Sora {
   void SetOnHandleAudio(std::function<void(const int16_t*, int, int)> f);
 
   void GetStats(std::function<void (std::string)> on_get_stats);
+  void SendDataChannelMessage(const char* str);
 
  private:
   bool DoConnect(const ConnectConfig& config);

@@ -281,11 +281,14 @@ RTCManager::~RTCManager() {
 
 std::shared_ptr<RTCConnection> RTCManager::createConnection(
     webrtc::PeerConnectionInterface::RTCConfiguration rtc_config,
-    RTCMessageSender* sender) {
+    RTCMessageSender* sender,
+    std::string streamName,
+    bool audioOnly,
+    bool playOnly) {
   rtc_config.enable_dtls_srtp = true;
   rtc_config.sdp_semantics = webrtc::SdpSemantics::kUnifiedPlan;
   std::unique_ptr<PeerConnectionObserver> observer(
-      new PeerConnectionObserver(sender, receiver_));
+      new PeerConnectionObserver(sender, receiver_,streamName));
   rtc::scoped_refptr<webrtc::PeerConnectionInterface> connection =
       factory_->CreatePeerConnection(rtc_config, nullptr, nullptr,
                                      observer.get());
@@ -296,7 +299,7 @@ std::shared_ptr<RTCConnection> RTCManager::createConnection(
 
   std::string stream_id = generateRandomChars();
 
-  if (audio_track_) {
+  if (audio_track_ && playOnly==false) {
     webrtc::RTCErrorOr<rtc::scoped_refptr<webrtc::RtpSenderInterface> >
         audio_sender = connection->AddTrack(audio_track_, {stream_id});
     if (!audio_sender.ok()) {
@@ -304,7 +307,7 @@ std::shared_ptr<RTCConnection> RTCManager::createConnection(
     }
   }
 
-  if (video_track_) {
+  if (video_track_ && audioOnly==false && playOnly==false) {
     webrtc::RTCErrorOr<rtc::scoped_refptr<webrtc::RtpSenderInterface> >
         video_add_result = connection->AddTrack(video_track_, {stream_id});
     if (video_add_result.ok()) {
@@ -317,6 +320,7 @@ std::shared_ptr<RTCConnection> RTCManager::createConnection(
       RTC_LOG(LS_WARNING) << __FUNCTION__ << ": Cannot add video_track_";
     }
   }
+  
 
   return std::make_shared<RTCConnection>(sender, std::move(observer),
                                          connection);

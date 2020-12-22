@@ -17,7 +17,7 @@
 #include <boost/beast/websocket/ssl.hpp>
 #include <boost/beast/websocket/stream.hpp>
 #include <nlohmann/json.hpp>
-
+#include <unordered_map>
 #include "rtc/rtc_manager.h"
 #include "rtc/rtc_message_sender.h"
 #include "url_parts.h"
@@ -39,6 +39,7 @@ struct SoraSignalingConfig {
   enum class Role { Sendonly, Recvonly, Sendrecv };
   Role role = Role::Sendonly;
   bool multistream = false;
+  bool audio_only = false;
 };
 
 class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
@@ -57,20 +58,25 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   URLParts parts_;
 
   RTCManager* manager_;
-  std::shared_ptr<RTCConnection> connection_;
+  std::unordered_map<std::string, std::shared_ptr<RTCConnection>> connection_;
+  std::unordered_map<std::string, rtc::scoped_refptr<webrtc::DataChannelInterface>> datachannels;
   SoraSignalingConfig config_;
   std::function<void(std::string)> on_notify_;
 
   webrtc::PeerConnectionInterface::IceConnectionState rtc_state_;
 
   bool connected_ = false;
-  bool answer_sent_ = false;
-
+  bool offer_sent_ = false;
+  std::string publishstreamId;
+  std::vector<std::string> playStreamIds;
+  std::string playonlystreamId;
+  std::vector<std::string> allids;
+  bool playOnly;
  public:
-  webrtc::PeerConnectionInterface::IceConnectionState getRTCConnectionState()
-      const;
+  webrtc::PeerConnectionInterface::IceConnectionState getRTCConnectionState() const;
   std::shared_ptr<RTCConnection> getRTCConnection() const;
-
+  void sendText(std::string text) override;
+  void sendDataMessage(std::string streamId, std::string text) override;
   static std::shared_ptr<SoraSignaling> Create(
       boost::asio::io_context& ioc,
       RTCManager* manager,
@@ -101,10 +107,14 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   void onHandshake(boost::system::error_code ec);
 
   void doSendConnect();
+  void doSendJoinRoom(std::string str);
+  void doSendPublish(std::string str);
+  void doSendPlay(std::string str);
   void doSendPong();
-  void doSendPong(
-      const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report);
-  void createPeerFromConfig(nlohmann::json jconfig);
+  void doSendGetRoomInfo(std::string roomId, std::string str);
+  /*void doSendPong(
+      const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report);*/
+  void createPeerFromConfig(std::string streamId);
 
  private:
   void onClose(boost::system::error_code ec);
@@ -112,11 +122,13 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   void doRead();
   void onRead(boost::system::error_code ec, std::size_t bytes_transferred);
 
-  void sendText(std::string text);
+  //void sendText(std::string text) override;
   void doSendText(std::string text);
 
   void doWrite();
   void onWrite(boost::system::error_code ec, std::size_t bytes_transferred);
+  
+  void onMessage(const webrtc::DataBuffer& buffer,std::string streamId);
 
  private:
   // WebRTC からのコールバック
@@ -129,6 +141,8 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   void onCreateDescription(webrtc::SdpType type,
                            const std::string sdp) override;
   void onSetDescription(webrtc::SdpType type) override;
+  void onDataChannel(
+      rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel,std::string streamId) override;
 
  private:
   void doIceConnectionStateChange(

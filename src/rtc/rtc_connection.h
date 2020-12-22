@@ -16,9 +16,9 @@ class RTCConnection {
         observer_(std::move(observer)),
         connection_(connection){};
   ~RTCConnection();
-  void createOffer();
+  void createOffer(std::string streamId, bool playOnly);
   void setOffer(const std::string sdp);
-  void createAnswer();
+  void createAnswer(std::string streamId);
   void setAnswer(const std::string sdp);
   void addIceCandidate(const std::string sdp_mid,
                        const int sdp_mlineindex,
@@ -27,6 +27,12 @@ class RTCConnection {
   bool setVideoEnabled(bool enabled);
   bool isAudioEnabled();
   bool isVideoEnabled();
+  void setStreamId(std::string streamId);
+  std::string getStreamId();
+  RTCMessageSender* getMessageSender();
+  webrtc::PeerConnectionInterface::IceConnectionState getIceState();
+  rtc::scoped_refptr<webrtc::DataChannelInterface> createDataChannel(
+      std::string streamId);
 
   void getStats(
       std::function<void(
@@ -45,6 +51,7 @@ class RTCConnection {
   RTCMessageSender* sender_;
   std::unique_ptr<PeerConnectionObserver> observer_;
   rtc::scoped_refptr<webrtc::PeerConnectionInterface> connection_;
+  std::string streamId;
 };
 
 }  // namespace sora

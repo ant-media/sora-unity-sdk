@@ -45,6 +45,7 @@ public class Sora : IDisposable
         public string AudioPlayoutDevice = "";
         public AudioCodec AudioCodec = AudioCodec.OPUS;
         public int AudioBitrate = 0;
+        public bool AudioOnly = false;
     }
 
     IntPtr p;
@@ -127,7 +128,8 @@ public class Sora : IDisposable
             config.AudioRecordingDevice,
             config.AudioPlayoutDevice,
             config.AudioCodec.ToString(),
-            config.AudioBitrate) == 0;
+            config.AudioBitrate,
+            config.AudioOnly ? 1 : 0) == 0;
     }
 
     // Unity 側でレンダリングが完了した時（yield return new WaitForEndOfFrame() の後）に呼ぶイベント
@@ -255,6 +257,12 @@ public class Sora : IDisposable
         GCHandle handle = GCHandle.Alloc(onGetStats);
         sora_get_stats(p, StatsCallback, GCHandle.ToIntPtr(handle));
     }
+
+    public void SendDataChannelMessage(string str)
+    {
+        sora_send_data_channel_message(p, str);
+    }
+
 
     private delegate void DeviceEnumCallbackDelegate(string device_name, string unique_name, IntPtr userdata);
 
@@ -402,7 +410,8 @@ public class Sora : IDisposable
         string audio_recording_device,
         string audio_playout_device,
         string audio_codec,
-        int audio_bitrate);
+        int audio_bitrate,
+        int audio_only);
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
 #else
@@ -469,4 +478,10 @@ public class Sora : IDisposable
     [DllImport("SoraUnitySdk")]
 #endif
     private static extern int sora_is_h264_supported();
+#if UNITY_IOS && !UNITY_EDITOR
+    [DllImport("__Internal")]
+#else
+    [DllImport("SoraUnitySdk")]
+#endif
+    private static extern int sora_send_data_channel_message(IntPtr p, string str);
 }

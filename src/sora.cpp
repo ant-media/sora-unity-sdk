@@ -1,5 +1,5 @@
 #include "sora.h"
-
+#include <nlohmann/json.hpp>
 #include "api/task_queue/default_task_queue_factory.h"
 #include "modules/audio_device/include/audio_device_factory.h"
 
@@ -16,7 +16,7 @@
 #ifdef SORA_UNITY_SDK_IOS
 #include "mac_helper/ios_audio_init.h"
 #endif
-
+using json = nlohmann::json;
 namespace sora {
 
 Sora::Sora(UnityContext* context) : context_(context) {
@@ -98,7 +98,7 @@ bool Sora::Connect(const Sora::ConnectConfig& cc) {
 bool Sora::DoConnect(const Sora::ConnectConfig& cc) {
   signaling_url_ = std::move(cc.signaling_url);
   channel_id_ = std::move(cc.channel_id);
-
+  conrole = cc.role;
   RTC_LOG(LS_INFO) << "Sora::Connect unity_version=" << cc.unity_version
                    << " signaling_url =" << signaling_url_
                    << " channel_id=" << channel_id_
@@ -112,7 +112,8 @@ bool Sora::DoConnect(const Sora::ConnectConfig& cc) {
                    << " unity_audio_input=" << cc.unity_audio_input
                    << " unity_audio_output=" << cc.unity_audio_output
                    << " audio_recording_device=" << cc.audio_recording_device
-                   << " audio_playout_device=" << cc.audio_playout_device;
+                   << " audio_playout_device=" << cc.audio_playout_device
+                   << " audio_enabled=;" << cc.audio_only;
 
   if (cc.role != "sendonly" && cc.role != "recvonly" && cc.role != "sendrecv") {
     RTC_LOG(LS_ERROR) << "Invalid role: " << cc.role;
@@ -209,6 +210,7 @@ bool Sora::DoConnect(const Sora::ConnectConfig& cc) {
     config.video_bitrate = cc.video_bitrate;
     config.audio_codec = cc.audio_codec;
     config.audio_bitrate = cc.audio_bitrate;
+    config.audio_only = cc.audio_only;
     if (!cc.metadata.empty()) {
       auto md = nlohmann::json::parse(cc.metadata, nullptr, false);
       if (md.type() == nlohmann::json::value_t::discarded) {
@@ -361,7 +363,9 @@ rtc::scoped_refptr<rtc::AdaptedVideoTrackSource> Sora::CreateVideoCapturer(
                                        video_height);
   }
 }
-
+/*
+If it is conference, sends getRoomInfo every 5 seconds.
+*/
 void Sora::GetStats(std::function<void (std::string)> on_get_stats) {
   auto conn = signaling_ == nullptr ? nullptr : signaling_->getRTCConnection();
   if (signaling_ == nullptr || conn == nullptr) {
@@ -371,17 +375,27 @@ void Sora::GetStats(std::function<void (std::string)> on_get_stats) {
       on_get_stats("[]");
     });
     return;
+  } else {
+    json json_message = {
+        {"command", "getRoomInfo"},
+        {"room", channel_id_},
+        {"streamId", conn->getStreamId()},
+    };
+    if (conrole == "sendrecv")
+      signaling_->sendText(json_message.dump());    //Sends getroominfo every 5 seconds to ensure there is no stream missing in the list. 
+                                                    //If any stream has stopped, it removes the stream. If any stream added, it will start playing it.
   }
-
-  conn->getStats(
-    [this, on_get_stats = std::move(on_get_stats)](const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) {
-      std::string json = report->ToJson();
-      std::lock_guard<std::mutex> guard(event_mutex_);
-      event_queue_.push_back([on_get_stats = std::move(on_get_stats), json = std::move(json)]() {
-        // ここは Unity スレッドから呼ばれる
-        on_get_stats(std::move(json));
-      });
-    });
+}
+/*
+Sends data channel message according to taken str from unity app.
+*/
+void sora::Sora::SendDataChannelMessage(const char* str) {
+  auto conn = signaling_ == nullptr ? nullptr : signaling_->getRTCConnection();
+  if (signaling_ == nullptr || conn == nullptr) {
+    return;
+  } else {
+    signaling_->sendDataMessage(conn->getStreamId(), str);
+  }
 }
 
 }  // namespace sora

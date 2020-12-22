@@ -6,7 +6,7 @@
 #include <boost/beast/websocket/stream.hpp>
 #include <boost/preprocessor/stringize.hpp>
 #include <nlohmann/json.hpp>
-
+#include <thread>
 namespace {
 
 std::string iceConnectionStateToString(
@@ -43,13 +43,27 @@ SoraSignaling::getRTCConnectionState() const {
   return rtc_state_;
 }
 
-std::shared_ptr<RTCConnection> SoraSignaling::getRTCConnection() const {
-  if (rtc_state_ == webrtc::PeerConnectionInterface::IceConnectionState::
-                        kIceConnectionConnected) {
-    return connection_;
-  } else {
-    return nullptr;
+//Checks for iceconnection state and for the role and returns the appropriate rtconnection.
+std::shared_ptr<RTCConnection> SoraSignaling::getRTCConnection()const{
+    if (config_.multistream == true && config_.role == SoraSignalingConfig::Role::Sendrecv && !publishstreamId.empty()){
+    if (connection_.at(publishstreamId)->getIceState() ==webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionConnected ||
+        connection_.at(publishstreamId)->getIceState() == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionCompleted) {
+      return connection_.at(publishstreamId);
+    }
   }
+    if (config_.role == SoraSignalingConfig::Role::Recvonly && !playonlystreamId.empty()) {
+    if (connection_.at(playonlystreamId)->getIceState() ==webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionConnected ||
+        connection_.at(playonlystreamId)->getIceState() ==webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionCompleted) {
+      return connection_.at(playonlystreamId);
+      }
+    }
+    if (config_.role == SoraSignalingConfig::Role::Sendonly&& !publishstreamId.empty()) {
+      if (connection_.at(publishstreamId)->getIceState() == webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionConnected ||
+          connection_.at(publishstreamId)->getIceState() ==webrtc::PeerConnectionInterface::IceConnectionState::kIceConnectionCompleted) {
+        return connection_.at(publishstreamId);
+      }
+    }
+    return nullptr;
 }
 
 std::shared_ptr<SoraSignaling> SoraSignaling::Create(
@@ -97,7 +111,7 @@ bool SoraSignaling::Init() {
   wss_.reset(new ssl_websocket_t(ioc_, ssl_ctx));
   wss_->write_buffer_bytes(8192);
 
-  // SNI の設定を行う
+  // SNI
   if (!SSL_set_tlsext_host_name(wss_->next_layer().native_handle(),
                                 parts_.host.c_str())) {
     boost::system::error_code ec{static_cast<int>(::ERR_get_error()),
@@ -108,14 +122,29 @@ bool SoraSignaling::Init() {
 
   return true;
 }
-
+/*
+Releases Sora.
+*/
 void SoraSignaling::release() {
-  // connection_ を nullptr にした上で解放する
-  // デストラクタ中にコールバックが呼ばれて解放中の connection_ にアクセスしてしまうことがあるため
-  auto connection = std::move(connection_);
-  connection = nullptr;
+  if (config_.role == SoraSignalingConfig::Role::Sendonly) {
+    /*auto connection = std::move(connection_[publishstreamId]);
+    connection = nullptr;*/
+    connection_.clear();
+    datachannels.clear();
+  } else if (config_.multistream == true &&
+             config_.role == SoraSignalingConfig::Role::Sendrecv) {
+    connection_.clear();
+    datachannels.clear();
+  } else if (config_.role == SoraSignalingConfig::Role::Recvonly) {
+    /*auto connection = std::move(connection_[playonlystreamId]);
+    connection = nullptr;*/
+    connection_.clear();
+    datachannels.clear();
+  }
 }
-
+/*
+Connects to the websocket that you defined in Unity.
+*/
 bool SoraSignaling::connect() {
   RTC_LOG(LS_INFO) << __FUNCTION__;
 
@@ -123,7 +152,7 @@ bool SoraSignaling::connect() {
     return false;
   }
 
-  std::string port = "443";
+  std::string port = "5443";
   if (!parts_.port.empty()) {
     port = parts_.port;
   }
@@ -131,7 +160,7 @@ bool SoraSignaling::connect() {
   RTC_LOG(LS_INFO) << "Start to resolve DNS: host=" << parts_.host
                    << " port=" << port;
 
-  // DNS ルックアップ
+  // DNS 
   resolver_.async_resolve(parts_.host, port,
                           boost::beast::bind_front_handler(
                               &SoraSignaling::onResolve, shared_from_this()));
@@ -149,7 +178,7 @@ void SoraSignaling::onResolve(
     return;
   }
 
-  // DNS ルックアップで得られたエンドポイントに対して接続する
+  // DNS 
   boost::asio::async_connect(
       wss_->next_layer().next_layer(), results.begin(), results.end(),
       std::bind(&SoraSignaling::onSSLConnect, shared_from_this(),
@@ -164,7 +193,7 @@ void SoraSignaling::onSSLConnect(boost::system::error_code ec) {
     return;
   }
 
-  // SSL のハンドシェイク
+  // SSL
   wss_->next_layer().async_handshake(
       boost::asio::ssl::stream_base::client,
       boost::beast::bind_front_handler(&SoraSignaling::onSSLHandshake,
@@ -179,7 +208,7 @@ void SoraSignaling::onSSLHandshake(boost::system::error_code ec) {
     return;
   }
 
-  // Websocket のハンドシェイク
+  // Websocket 
   wss_->async_handshake(parts_.host, parts_.path_query_fragment,
                         boost::beast::bind_front_handler(
                             &SoraSignaling::onHandshake, shared_from_this()));
@@ -208,69 +237,69 @@ void SoraSignaling::onHandshake(boost::system::error_code ec) {
 
 void SoraSignaling::doSendConnect() {
   std::string role =
-    config_.role == SoraSignalingConfig::Role::Sendonly ? "sendonly" :
-    config_.role == SoraSignalingConfig::Role::Recvonly ? "recvonly" : "sendrecv";
+      config_.role == SoraSignalingConfig::Role::Sendonly ? "publish" : "play";
+  if (config_.multistream == true && config_.role == SoraSignalingConfig::Role::Sendrecv) {
+    doSendJoinRoom(config_.channel_id);
+  }
+  else if (role == "publish") {
+    doSendPublish(config_.channel_id);
+  } else if (role == "play")
+    doSendPlay(config_.channel_id);
+}
 
+void SoraSignaling::doSendJoinRoom(std::string str) {
   json json_message = {
-      {"type", "connect"},
-      {"role", role},
-      {"multistream", config_.multistream},
-      {"channel_id", config_.channel_id},
-      {"sora_client", SORA_CLIENT},
-      {"libwebrtc", LIBWEBRTC},
-      {"environment",
-       "Unity " + config_.unity_version + " for " SORA_UNITY_SDK_PLATFORM},
+      {"command", "joinRoom"},
+      {"room", str}
   };
+  sendText(json_message.dump());
+}
 
-  if (!config_.metadata.is_null()) {
-    json_message["metadata"] = config_.metadata;
-  }
-
-  json_message["video"]["codec_type"] = config_.video_codec;
-  if (config_.video_bitrate != 0) {
-    json_message["video"]["bit_rate"] = config_.video_bitrate;
-  }
-
-  json_message["audio"]["codec_type"] = config_.audio_codec;
-  if (config_.audio_bitrate != 0) {
-    json_message["audio"]["bit_rate"] = config_.audio_bitrate;
-  }
-
+void SoraSignaling::doSendPublish(std::string str) {
+  json json_message = {
+      {"command", "publish"},
+      {"streamId", str},
+      {"video", config_.audio_only==true?false:true},
+  };
+  sendText(json_message.dump());
+}
+void SoraSignaling::doSendPlay(std::string str) {
+  json json_message = {
+      {"command", "play"},
+      {"streamId", str},
+  };
   sendText(json_message.dump());
 }
 void SoraSignaling::doSendPong() {
-  json json_message = {{"type", "pong"}};
+  json json_message = {{"command", "ping"}};
   sendText(json_message.dump());
 }
-void SoraSignaling::doSendPong(
-    const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) {
-  std::string stats = report->ToJson();
-  json json_message = {{"type", "pong"}, {"stats", stats}};
-  std::string str = R"({"type":"pong","stats":)" + stats + "}";
-  sendText(std::move(str));
+void SoraSignaling::doSendGetRoomInfo(std::string roomId, std::string str) {
+  json json_message = {
+      {"command", "getRoomInfo"},
+      {"room", roomId},
+      {"streamId", str},
+  };
+  sendText(json_message.dump());
 }
-
-void SoraSignaling::createPeerFromConfig(json jconfig) {
+                     
+/*
+Creates peer connection and sets streamid.
+*/
+void SoraSignaling::createPeerFromConfig(std::string streamId) {
   webrtc::PeerConnectionInterface::RTCConfiguration rtc_config;
   webrtc::PeerConnectionInterface::IceServers ice_servers;
 
-  auto jservers = jconfig["iceServers"];
-  for (auto jserver : jservers) {
-    const std::string username = jserver["username"];
-    const std::string credential = jserver["credential"];
-    auto jurls = jserver["urls"];
-    for (const std::string url : jurls) {
-      webrtc::PeerConnectionInterface::IceServer ice_server;
-      ice_server.uri = url;
-      ice_server.username = username;
-      ice_server.password = credential;
-      ice_servers.push_back(ice_server);
-    }
-  }
+  webrtc::PeerConnectionInterface::IceServer ice_server;
+  ice_server.uri = "stun:stun1.l.google.com:19302";
+  ice_servers.push_back(ice_server);
 
   rtc_config.servers = ice_servers;
-
-  connection_ = manager_->createConnection(rtc_config, this);
+  playOnly = config_.role == SoraSignalingConfig::Role::Recvonly;
+  if (!publishstreamId.empty())
+    playOnly = true;
+  connection_[streamId] = manager_->createConnection(rtc_config, this,streamId,config_.audio_only,playOnly);
+  connection_[streamId]->setStreamId(streamId);
 }
 
 void SoraSignaling::close() {
@@ -309,42 +338,96 @@ void SoraSignaling::onRead(boost::system::error_code ec,
   read_buffer_.consume(read_buffer_.size());
 
   RTC_LOG(LS_INFO) << __FUNCTION__ << ": text=" << text;
-
+  /*
+  Parsing the incoming websocket message and function according to message. If it is start, start publishing etc.
+  */
   auto json_message = json::parse(text);
-  const std::string type = json_message["type"];
-  if (type == "offer") {
-    answer_sent_ = false;
-    createPeerFromConfig(json_message["config"]);
-    const std::string sdp = json_message["sdp"];
-    connection_->setOffer(sdp);
-  } else if (type == "update") {
-    const std::string sdp = json_message["sdp"];
-    connection_->setOffer(sdp);
-  } else if (type == "notify") {
-    if (on_notify_) {
-      on_notify_(text);
+  const std::string command = json_message["command"];
+  //Here is the where signaling handled
+  //Start is for starting the publishing, creates peerconnection and sends offer. See observer.h and observer.cpp for callbacks in here for offer and answers. Also creates DataChannel.
+  if (command == "start") {
+    offer_sent_ = false;
+    createPeerFromConfig(json_message["streamId"]);
+    datachannels[json_message["streamId"]] =connection_[json_message["streamId"]]->createDataChannel(json_message["streamId"]);
+    datachannels[json_message["streamId"]]->RegisterObserver(new DataChannelObserver(connection_[json_message["streamId"]]->getMessageSender(),json_message["streamId"]));
+    connection_[json_message["streamId"]]->createOffer(json_message["streamId"],playOnly);
+    offer_sent_ = true;
+    publishstreamId = json_message["streamId"];
+    connection_[publishstreamId]->setStreamId(publishstreamId);
+  } else if (command == "takeConfiguration") {  // If playing, it will set remote offer and create answer. If publishing, it will set answer and that is all.
+    if (json_message["type"] == "answer")
+      connection_[json_message["streamId"]]->setAnswer(json_message["sdp"]);
+    else if (json_message["type"] == "offer") {
+      createPeerFromConfig(json_message["streamId"]);
+      offer_sent_ = false;
+      connection_[json_message["streamId"]]->setOffer(json_message["sdp"]);
+      connection_[json_message["streamId"]]->createAnswer(json_message["streamId"]);
+      playonlystreamId = json_message["streamId"];
     }
-  } else if (type == "ping") {
-    if (rtc_state_ != webrtc::PeerConnectionInterface::IceConnectionState::
+  } else if (command == "takeCandidate") { //Adds remote ice candidates to the peerconnection.
+    ///*if (on_notify_) {
+      //on_notify_(text);
+    doSendPong();
+    connection_[json_message["streamId"]]->addIceCandidate(
+        json_message["id"], json_message["label"],
+                                 json_message["candidate"]);
+  }
+  else if (command == "pong"){ //If pong message is arrived, try to read websocket again, if you are here without any incoming message, application may hang.
+          if (rtc_state_ != webrtc::PeerConnectionInterface::IceConnectionState::
                           kIceConnectionConnected) {
       doRead();
       return;
     }
-    bool stats = json_message.value("stats", false);
-    if (stats) {
-      connection_->getStats(
-          [this](
-              const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) {
-            doSendPong(report);
-          });
-    } else {
+
+  } else if (command == "notification") {
+    if (json_message["definition"] == "joinedTheRoom") {    // When joined to the room, it gets the streams from the room with 'streams' then plays them one by one. 
+      doSendPublish(json_message["streamId"]);              //Also starting publishing the stream according to taken streamid from the server
+      for (auto stream : json_message["streams"]) {
+        doSendPlay(stream);
+        playStreamIds.push_back(stream);
+        }
+    } else if (json_message["definition"] == "play_finished") {
+      if (datachannels[json_message["streamId"]]) {
+        datachannels[json_message["streamId"]]->UnregisterObserver();
+      }
+      connection_.erase(json_message["streamId"]);
+      datachannels.erase(json_message["streamId"]);
+      RTC_LOG(LS_ERROR) << "__FUNCTION__"
+                        << "PLAY_FINISHED: "
+                        << "stream "<<json_message["streamId"]<<"has been removed from the stream list";
+    } else if (json_message["definition"] == "bitrateMeasurement") {
       doSendPong();
     }
-  }
+  
+  } else if (command == "roomInformation") {
+    playStreamIds.clear();
+    for (auto stream : json_message["streams"]) {
+      if (connection_.find(stream) == connection_.end())
+        doSendPlay(stream);
+      playStreamIds.push_back(stream);
+    }
+  } else if(command=="error"){
+    if (json_message["defition"] == "publishTimeoutError") {
+      RTC_LOG(LS_ERROR) << "__FUNCTION__"
+                        << "PUBLISH_TIMEOUT_ERROR: "
+                        << "Publish stream is resetted";
+      if (datachannels[publishstreamId]) {
+        datachannels[publishstreamId]->UnregisterObserver();
+        datachannels.erase(publishstreamId);
+      }
+      connection_.erase(publishstreamId);
+    } else if (json_message["defition"] == "no_stream_exist") {
+      RTC_LOG(LS_INFO) << "__FUNCTION__"
+                        << "no_stream_exist: "
+                        << "No stream has found with according stream id";
 
+    }
+  }
   doRead();
 }
-
+/*
+Sends websocket message.
+*/
 void SoraSignaling::sendText(std::string text) {
   RTC_LOG(LS_INFO) << __FUNCTION__;
 
@@ -400,8 +483,9 @@ void SoraSignaling::onWrite(boost::system::error_code ec,
   }
 }
 
-// WebRTC からのコールバック
-// これらは別スレッドからやってくるので取り扱い注意
+/*
+Functions at below are handled at observer.cpp.
+*/
 void SoraSignaling::onIceConnectionStateChange(
     webrtc::PeerConnectionInterface::IceConnectionState new_state) {
   RTC_LOG(LS_INFO) << __FUNCTION__ << " state:" << new_state;
@@ -412,27 +496,17 @@ void SoraSignaling::onIceConnectionStateChange(
 void SoraSignaling::onIceCandidate(const std::string sdp_mid,
                                    const int sdp_mlineindex,
                                    const std::string sdp) {
-  json json_message = {{"type", "candidate"}, {"candidate", sdp}};
-  sendText(json_message.dump());
+  RTC_LOG(LS_INFO) << "__FUNCTION__"
+                   << "Candidates are being added.";
 }
 void SoraSignaling::onCreateDescription(webrtc::SdpType type,
                                         const std::string sdp) {
-  // 最初の1回目は answer を送り、以降は update を送る
-  if (!answer_sent_) {
-    answer_sent_ = true;
-    json json_message = {{"type", "answer"}, {"sdp", sdp}};
-    sendText(json_message.dump());
-  } else {
-    json json_message = {{"type", "update"}, {"sdp", sdp}};
-    sendText(json_message.dump());
-  }
+ 
+RTC_LOG(LS_INFO) << __FUNCTION__ << " " << webrtc::SdpTypeToString(type);
 }
 void SoraSignaling::onSetDescription(webrtc::SdpType type) {
   RTC_LOG(LS_INFO) << __FUNCTION__
                    << " SdpType: " << webrtc::SdpTypeToString(type);
-  if (connection_ && type == webrtc::SdpType::kOffer) {
-    connection_->createAnswer();
-  }
 }
 
 void SoraSignaling::doIceConnectionStateChange(
@@ -452,6 +526,39 @@ void SoraSignaling::doIceConnectionStateChange(
       break;
   }
   rtc_state_ = new_state;
+}
+/*
+When remote peer opens a data channel, this callback will be executed. It creates a data channel with the incoming data channel and adds an observer to it to detect incoming messages.
+*/
+void SoraSignaling::onDataChannel(
+    rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel,std::string streamId) {
+  datachannels[streamId] = data_channel;
+  datachannels[streamId]->RegisterObserver(
+      new DataChannelObserver(connection_[streamId]->getMessageSender(),streamId));
+}
+
+/*
+Sends Data channel message. You can also send binary data and not only string but you may need to modify the way it binds with unity application.
+*/
+void sora::SoraSignaling::sendDataMessage(std::string streamId,std::string text) {
+  if (datachannels[streamId]) {
+    webrtc::DataBuffer buffer(text);
+    datachannels[streamId]->Send(buffer);
+  } else {
+    RTC_LOG(LS_INFO) << __FUNCTION__;
+    RTC_LOG(LS_ERROR)<< "Datachannel is not ready to send a message";
+  }
+
+  //RTC_LOG(LS_INFO)<<"sent data message is: " << buffer;
+}
+
+void sora::SoraSignaling::onMessage(const webrtc::DataBuffer& buffer,
+    std::string streamId) {
+    
+  //rtc::CopyOnWriteBuffer buf = buffer.data;
+  //char* c = buf.data<char>();
+    on_notify_(std::string(buffer.data.data<char>()));
+  RTC_LOG(LS_INFO) << std::string(buffer.data.data<char>());
 }
 
 }  // namespace sora

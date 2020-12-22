@@ -34,16 +34,16 @@ RTCConnection::~RTCConnection() {
   connection_->Close();
 }
 
-void RTCConnection::createOffer() {
+void RTCConnection::createOffer(std::string streamId, bool playOnly) {
   using RTCOfferAnswerOptions =
       webrtc::PeerConnectionInterface::RTCOfferAnswerOptions;
   RTCOfferAnswerOptions options = RTCOfferAnswerOptions();
-  options.offer_to_receive_video =
-      RTCOfferAnswerOptions::kOfferToReceiveMediaTrue;
-  options.offer_to_receive_audio =
-      RTCOfferAnswerOptions::kOfferToReceiveMediaTrue;
+  options.offer_to_receive_video = playOnly==true? RTCOfferAnswerOptions::kOfferToReceiveMediaTrue
+                       : 0;
+  options.offer_to_receive_audio =playOnly == true ?
+      RTCOfferAnswerOptions::kOfferToReceiveMediaTrue:0;
   connection_->CreateOffer(
-      CreateSessionDescriptionObserver::Create(sender_, connection_), options);
+      CreateSessionDescriptionObserver::Create(sender_, connection_,streamId), options);
 }
 
 void RTCConnection::setOffer(const std::string sdp) {
@@ -63,9 +63,9 @@ void RTCConnection::setOffer(const std::string sdp) {
       session_description.release());
 }
 
-void RTCConnection::createAnswer() {
+void RTCConnection::createAnswer(std::string streamId) {
   connection_->CreateAnswer(
-      CreateSessionDescriptionObserver::Create(sender_, connection_),
+      CreateSessionDescriptionObserver::Create(sender_, connection_,streamId),
       webrtc::PeerConnectionInterface::RTCOfferAnswerOptions());
 }
 
@@ -119,6 +119,14 @@ bool RTCConnection::isAudioEnabled() {
 
 bool RTCConnection::isVideoEnabled() {
   return isMediaEnabled(getLocalVideoTrack());
+}
+
+void RTCConnection::setStreamId(std::string streamId) {
+  this->streamId = streamId;
+}
+
+std::string RTCConnection::getStreamId() {
+  return streamId;
 }
 
 rtc::scoped_refptr<webrtc::MediaStreamInterface>
@@ -184,5 +192,14 @@ void RTCConnection::getStats(
         callback) {
   connection_->GetStats(RTCStatsCallback::Create(std::move(callback)));
 }
-
+webrtc::PeerConnectionInterface::IceConnectionState sora::RTCConnection::getIceState() {
+  return connection_->ice_connection_state();
+}
+rtc::scoped_refptr<webrtc::DataChannelInterface> RTCConnection::createDataChannel(std::string streamId) {
+  webrtc::DataChannelInit* options = {};
+  return connection_->CreateDataChannel(streamId, options);
+}
+RTCMessageSender* sora::RTCConnection::getMessageSender() {
+  return sender_;
+}
 }  // namespace sora

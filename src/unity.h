@@ -47,7 +47,8 @@ UNITY_INTERFACE_EXPORT int sora_connect(void* p,
                                         const char* audio_recording_device,
                                         const char* audio_playout_device,
                                         const char* audio_codec,
-                                        int audio_bitrate);
+                                        int audio_bitrate,
+                                        int audio_only);
 UNITY_INTERFACE_EXPORT void* sora_get_texture_update_callback();
 UNITY_INTERFACE_EXPORT void sora_destroy(void* sora);
 
@@ -67,6 +68,8 @@ UNITY_INTERFACE_EXPORT void sora_set_on_handle_audio(void* p,
                                                      void* userdata);
 
 UNITY_INTERFACE_EXPORT void sora_get_stats(void* p, stats_cb_t f, void* userdata);
+
+UNITY_INTERFACE_EXPORT void sora_send_data_channel_message(void* p, const char* str);
 
 typedef void (*device_enum_cb_t)(const char* device_name,
                                  const char* unique_name,

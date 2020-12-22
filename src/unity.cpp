@@ -87,7 +87,8 @@ int sora_connect(void* p,
                  const char* audio_recording_device,
                  const char* audio_playout_device,
                  const char* audio_codec,
-                 int audio_bitrate) {
+                 int audio_bitrate,
+                 int audio_only) {
   auto sora = (sora::Sora*)p;
   sora::Sora::ConnectConfig config;
   config.unity_version = unity_version;
@@ -109,6 +110,7 @@ int sora_connect(void* p,
   config.audio_playout_device = audio_playout_device;
   config.audio_codec = audio_codec;
   config.audio_bitrate = audio_bitrate;
+  config.audio_only = audio_only;
   if (!sora->Connect(config)) {
     return -1;
   }
@@ -148,6 +150,11 @@ void sora_get_stats(void* p, stats_cb_t f, void* userdata) {
   sora->GetStats([f, userdata](std::string json) {
     f(json.c_str(), json.size(), userdata);
   });
+}
+
+void sora_send_data_channel_message(void* p, const char* str) {
+  auto sora = (sora::Sora*)p;
+  sora->SendDataChannelMessage(str);
 }
 
 unity_bool_t sora_device_enum_video_capturer(device_enum_cb_t f,

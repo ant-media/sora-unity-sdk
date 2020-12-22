@@ -2,9 +2,10 @@
 #include "rtc_base/logging.h"
 
 #include "observer.h"
-
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 namespace sora {
-
+    
 void PeerConnectionObserver::OnTrack(
     rtc::scoped_refptr<webrtc::RtpTransceiverInterface> transceiver) {
   if (receiver_ == nullptr) {
@@ -57,6 +58,14 @@ void PeerConnectionObserver::OnIceCandidate(
     if (sender_ != nullptr) {
       sender_->onIceCandidate(candidate->sdp_mid(),
                               candidate->sdp_mline_index(), sdp);
+      json json_message = {
+      {"command", "takeCandidate"},
+      {"streamId",
+       streamId},
+      {"label", candidate->sdp_mline_index()},
+      {"id", candidate->sdp_mid()},
+      {"candidate",sdp}}; 
+  sender_->sendText(json_message.dump());
     }
   } else {
     RTC_LOG(LS_ERROR) << "Failed to serialize candidate";
@@ -72,6 +81,12 @@ void CreateSessionDescriptionObserver::OnSuccess(
       SetSessionDescriptionObserver::Create(desc->GetType(), sender_), desc);
   if (sender_ != nullptr) {
     sender_->onCreateDescription(desc->GetType(), sdp);
+    json json_message = {{"command", "takeConfiguration"},
+                         {"streamId", streamId},
+                         {"type", desc->GetType() == webrtc::SdpType::kAnswer?"answer":"offer"},
+                         {"sdp", sdp}};
+   
+    sender_->sendText(json_message.dump());
   }
 }
 
@@ -92,4 +107,18 @@ void SetSessionDescriptionObserver::OnFailure(webrtc::RTCError error) {
                     << ToString(error.type()) << ": " << error.message();
 }
 
+void DataChannelObserver::OnMessage(const webrtc::DataBuffer& buffer) {
+  sender_->onMessage(buffer,streamId);
+
+}
+/*void DataChannelObserver::OnBufferedAmountChange(uint64_t sent_data_size) {
+  RTC_LOG(LS_INFO) << "Data Channel: "
+                   << "sent data size is: "<< sent_data_size;
+
+}*/
+
+void PeerConnectionObserver::OnDataChannel(
+    rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel) {
+  sender_->onDataChannel(data_channel,streamId);
+    }
 }  // namespace sora

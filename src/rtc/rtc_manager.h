@@ -57,7 +57,10 @@ class RTCManager {
   ~RTCManager();
   std::shared_ptr<RTCConnection> createConnection(
       webrtc::PeerConnectionInterface::RTCConfiguration rtc_config,
-      RTCMessageSender* sender);
+      RTCMessageSender* sender,
+      std::string streamName,
+      bool audioOnly,
+      bool playOnly);
 
  private:
   static bool InitADM(rtc::scoped_refptr<webrtc::AudioDeviceModule> adm,
