@@ -175,6 +175,8 @@ bool Sora::DoConnect(const Sora::ConnectConfig& cc) {
 
     config.audio_recording_device = cc.audio_recording_device;
     config.audio_playout_device = cc.audio_playout_device;
+    if (cc.audio_only==true)
+      config.no_video = true;
     rtc_manager_ = RTCManager::Create(
         config, std::move(capturer), renderer_.get(), unity_adm_,
         std::move(task_queue_factory), std::move(signaling_thread),

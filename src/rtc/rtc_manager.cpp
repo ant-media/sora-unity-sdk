@@ -301,7 +301,7 @@ std::shared_ptr<RTCConnection> RTCManager::createConnection(
 
   if (audio_track_ && playOnly==false) {
     webrtc::RTCErrorOr<rtc::scoped_refptr<webrtc::RtpSenderInterface> >
-        audio_sender = connection->AddTrack(audio_track_, {stream_id});
+        audio_sender = connection->AddTrack(audio_track_, {streamName});
     if (!audio_sender.ok()) {
       RTC_LOG(LS_WARNING) << __FUNCTION__ << ": Cannot add audio_track_";
     }
@@ -309,7 +309,7 @@ std::shared_ptr<RTCConnection> RTCManager::createConnection(
 
   if (video_track_ && audioOnly==false && playOnly==false) {
     webrtc::RTCErrorOr<rtc::scoped_refptr<webrtc::RtpSenderInterface> >
-        video_add_result = connection->AddTrack(video_track_, {stream_id});
+        video_add_result = connection->AddTrack(video_track_, {streamName});
     if (video_add_result.ok()) {
       rtc::scoped_refptr<webrtc::RtpSenderInterface> video_sender =
           video_add_result.value();
