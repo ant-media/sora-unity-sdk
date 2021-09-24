@@ -386,6 +386,16 @@ void Sora::GetStats(std::function<void (std::string)> on_get_stats) {
     if (conrole == "sendrecv")
       signaling_->sendText(json_message.dump());    //Sends getroominfo every 5 seconds to ensure there is no stream missing in the list. 
                                                     //If any stream has stopped, it removes the stream. If any stream added, it will start playing it.
+
+    conn->getStats(
+    [this, on_get_stats = std::move(on_get_stats)](const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report) {
+      std::string json = report->ToJson();
+      std::lock_guard<std::mutex> guard(event_mutex_);
+      event_queue_.push_back([on_get_stats = std::move(on_get_stats), json = std::move(json)]() {
+        // ここは Unity スレッドから呼ばれる
+        on_get_stats(std::move(json));
+      });
+    });
   }
 }
 /*
