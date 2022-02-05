@@ -77,6 +77,7 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   std::shared_ptr<RTCConnection> getRTCConnection() const;
   void sendText(std::string text) override;
   void sendDataMessage(std::string streamId, std::string text) override;
+  void doSendPong();
   static std::shared_ptr<SoraSignaling> Create(
       boost::asio::io_context& ioc,
       RTCManager* manager,
@@ -110,7 +111,6 @@ class SoraSignaling : public std::enable_shared_from_this<SoraSignaling>,
   void doSendJoinRoom(std::string str);
   void doSendPublish(std::string str);
   void doSendPlay(std::string str);
-  void doSendPong();
   void doSendGetRoomInfo(std::string roomId, std::string str);
   /*void doSendPong(
       const rtc::scoped_refptr<const webrtc::RTCStatsReport>& report);*/
