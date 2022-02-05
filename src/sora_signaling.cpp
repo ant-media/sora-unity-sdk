@@ -376,7 +376,6 @@ void SoraSignaling::onRead(boost::system::error_code ec,
           if (rtc_state_ != webrtc::PeerConnectionInterface::IceConnectionState::
                           kIceConnectionConnected) {
       doRead();
-      doSendPong();
       return;
     }
 
