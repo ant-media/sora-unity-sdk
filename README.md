@@ -2,20 +2,11 @@
 
 
 # Introduction
-
 Ant Media Server is a streaming engine software that provides adaptive, ultra low latency streaming by using WebRTC technology with ~0.5 seconds latency. 
 Ant Media Server is highly scalable both horizontally and vertically. It can run on-premise or on-cloud.
 Ant Media Server - Scalable, Real-Time and Developer-friendly(API-First) - offers a robust and fully customizable environment to build your next live streaming product quickly.
 
-## About Support
-
-We check PRs or Issues only when written in ENGLISH.
-In other languages, we won't be able to deal with them. Thank you for your understanding.
-
-
-
 ## Features
-
 -Ultra Low Latency WebRTC Streaming
 -Adaptive Bitrate Streaming
 -Highly Scalable WebRTC Streaming on Clusters
@@ -26,24 +17,10 @@ In other languages, we won't be able to deal with them. Thank you for your under
 ## Licenses
 Please visit out website for Licenses and choice as per your uses.(https://antmedia.io/)
 
+## use Unity package
 
-We check PRs or Issues only when written in ENGLISH.
-In other languages, we won't be able to deal with them. Thank you for your understanding.
-
-## About AntMedia's open source software
-
-Please read https://github.com/ant-media/sora-unity-sdk before using.
-
-## How to Use
-If you would like to use the Sora Unity SDK, please read [README.md] (doc / README.md).
-
-## How to build
-
---Please read [BUILD_WINDOWS.md] (doc / BUILD_WINDOWS.md) for how to build on Windows.
---Please read [BUILD_MACOS.md] (doc / BUILD_MACOS.md) for how to build on macOS.
 
 ## Supported Unity versions
-
 -All versions are supporting after Unity 2019.1
 
 ## Supported platforms
@@ -54,7 +31,6 @@ If you would like to use the Sora Unity SDK, please read [README.md] (doc / READ
 
 
 ## Supported functions
-
 --Support for Windows
 --Support for macOS
 --Compatible with Android
@@ -88,27 +64,16 @@ If you would like to use the Sora Unity SDK, please read [README.md] (doc / READ
 --Support for H.264 hardware encoding
 --Support for H.264 hardware decoding
 
-## H.264 About the use of
-
-H.264 encoding / decoding is not available in software with the Sora Unity SDK.
-This is because if you distribute the software including the H.264 software encoder / decoder, you will be charged a license fee, so it is disabled.
-
-Therefore, H.264 encoding / decoding is realized by using NVIDIA VIDEO CODEC SDK on Windows and VideoToolbox on macOS. Android also uses the H.264 hardware encoder.
-
-Read H.264 [USE_H264.md] (doc / USE_H264.md) for more information
-
 
 ### platform
 --Support for Ubuntu 18.04
 
 ### NVIDIA VIDEO CODEC SDK
-
 --Support for VP8 hardware decoding
 --Support for VP9 hardware decoding
 --Support for Ubuntu 18.04
 
 ### Supports INTEL Media SDK
-
 --Support for H.264 hardware encoding
 --Support for VP8 hardware encoding
 --Support for VP9 hardware encoding
