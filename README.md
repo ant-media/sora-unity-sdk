@@ -17,9 +17,6 @@ Ant Media Server - Scalable, Real-Time and Developer-friendly(API-First) - offer
 ## Licenses
 Please visit out website for Licenses and choice as per your uses.(https://antmedia.io/)
 
-## use Unity package
-
-
 ## Supported Unity versions
 -All versions are supporting after Unity 2019.1
 
