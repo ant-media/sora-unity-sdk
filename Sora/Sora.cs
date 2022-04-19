@@ -79,8 +79,8 @@ public class Sora : IDisposable
             p = IntPtr.Zero;
         }
 
-        // Sora が別スレッドからコールバックを呼びまくっているので、
-        // Sora を破棄した後に解放しないとエラーになってしまう。
+        // Sora is calling a callback from another thread, so
+        // If you do not release Sora after destroying it, an error will occur.
         if (onHandleAudioHandle.IsAllocated)
         {
             onHandleAudioHandle.Free();
@@ -131,15 +131,14 @@ public class Sora : IDisposable
             config.AudioBitrate,
             config.AudioOnly ? 1 : 0) == 0;
     }
-
-    // Unity 側でレンダリングが完了した時（yield return new WaitForEndOfFrame() の後）に呼ぶイベント
-    // 指定した Unity カメラの映像を Sora 側のテクスチャにレンダリングしたりする
+    // Event to be called when rendering is completed on the Unity side (after yield return new WaitForEndOfFrame ())
+    // Render the image of the specified Unity camera to the texture on the Sora side
     public void OnRender()
     {
         UnityEngine.GL.IssuePluginEvent(sora_get_render_callback(), sora_get_render_callback_event_id(p));
     }
 
-    // trackId で受信した映像を texutre にレンダリングする
+    // Render the video received by trackId to texture
     public void RenderTrackToTexture(uint trackId, UnityEngine.Texture texture)
     {
         commandBuffer.IssuePluginCustomTextureUpdateV2(sora_get_texture_update_callback(), texture, trackId);

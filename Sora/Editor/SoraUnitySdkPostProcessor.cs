@@ -28,10 +28,10 @@ public class SoraUnitySdkPostProcessor
         proj.AddFrameworkToProject(guid, "VideoToolbox.framework", false);
         proj.AddFrameworkToProject(guid, "GLKit.framework", false);
         proj.AddFrameworkToProject(guid, "Network.framework", false);
-        // libwebrtc.a には新しい libvpx が、libiPhone-lib.a には古い libvpx が入っていて、
-        // デフォルトのリンク順序だと古い libvpx が使われてしまう。
-        // それを回避するために libiPhone-lib.a を削除して新しく追加し直すことで
-        // リンク順序を変えてやる。
+        // libwebrtc.a contains the new libvpx, libiPhone-lib.a contains the old libvpx,
+        // The default link order will use the old libvpx.
+        // To avoid that, delete libiPhone-lib.a and add a new one.
+        // Change the link order.
         string fileGuid = proj.FindFileGuidByProjectPath("Libraries/libiPhone-lib.a");
         proj.RemoveFileFromBuild(guid, fileGuid);
         proj.AddFileToBuild(guid, fileGuid);
