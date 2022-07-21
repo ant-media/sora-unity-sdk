@@ -12,7 +12,7 @@ Ant Media Server - Scalable, Real-Time and Developer-friendly(API-First) - offer
 -Highly Scalable WebRTC Streaming on Clusters
 -Free Live Streaming SDKs for iOS, Android, Unity and JavaScript
 -Live Video Monitoring and Surveillance
--Open Source Live Streaming Software
+-Open Source Live Streaming Software 
 
 ## Licenses
 Please visit out website for Licenses and choice as per your uses.(https://antmedia.io/)
