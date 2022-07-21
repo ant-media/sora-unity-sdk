@@ -16,6 +16,7 @@
 #ifdef SORA_UNITY_SDK_IOS
 #include "mac_helper/ios_audio_init.h"
 #endif
+
 using json = nlohmann::json;
 namespace sora {
 
